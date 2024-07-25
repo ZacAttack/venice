@@ -4,7 +4,6 @@ import static com.linkedin.venice.pubsub.PubSubConstants.PUBSUB_CONSUMER_POSITIO
 import static com.linkedin.venice.pubsub.adapter.kafka.producer.ApacheKafkaProducerConfig.KAFKA_CONFIG_PREFIX;
 
 import com.linkedin.venice.pubsub.PubSubConstants;
-import com.linkedin.venice.utils.KafkaSSLUtils;
 import com.linkedin.venice.utils.VeniceProperties;
 import java.time.Duration;
 import java.util.Properties;
@@ -53,7 +52,8 @@ public class ApacheKafkaConsumerConfig {
     }
 
     // Setup ssl config if needed.
-    isSslEnabled = KafkaSSLUtils.validateAndCopyKafkaSSLConfig(veniceProperties, this.consumerProperties);
+    // isSslEnabled = KafkaSSLUtils.validateAndCopyKafkaSSLConfig(veniceProperties, this.consumerProperties);
+    isSslEnabled = false;
 
     if (!consumerProperties.containsKey(ConsumerConfig.RECEIVE_BUFFER_CONFIG)) {
       consumerProperties.put(ConsumerConfig.RECEIVE_BUFFER_CONFIG, DEFAULT_RECEIVE_BUFFER_SIZE);

@@ -1,17 +1,7 @@
 package com.linkedin.venice.endToEnd;
 
 import static com.linkedin.davinci.store.rocksdb.RocksDBServerConfig.ROCKSDB_PLAIN_TABLE_FORMAT_ENABLED;
-import static com.linkedin.venice.ConfigKeys.DEFAULT_MAX_NUMBER_OF_PARTITIONS;
-import static com.linkedin.venice.ConfigKeys.INSTANCE_ID;
-import static com.linkedin.venice.ConfigKeys.KAFKA_BOOTSTRAP_SERVERS;
-import static com.linkedin.venice.ConfigKeys.PERSISTENCE_TYPE;
-import static com.linkedin.venice.ConfigKeys.SERVER_CONSUMER_POOL_SIZE_PER_KAFKA_CLUSTER;
-import static com.linkedin.venice.ConfigKeys.SERVER_DATABASE_CHECKSUM_VERIFICATION_ENABLED;
-import static com.linkedin.venice.ConfigKeys.SERVER_DATABASE_SYNC_BYTES_INTERNAL_FOR_DEFERRED_WRITE_MODE;
-import static com.linkedin.venice.ConfigKeys.SERVER_DEDICATED_DRAINER_FOR_SORTED_INPUT_ENABLED;
-import static com.linkedin.venice.ConfigKeys.SERVER_PROMOTION_TO_LEADER_REPLICA_DELAY_SECONDS;
-import static com.linkedin.venice.ConfigKeys.SERVER_SHARED_CONSUMER_ASSIGNMENT_STRATEGY;
-import static com.linkedin.venice.ConfigKeys.SSL_TO_KAFKA_LEGACY;
+import static com.linkedin.venice.ConfigKeys.*;
 import static com.linkedin.venice.hadoop.VenicePushJobConstants.DEFER_VERSION_SWAP;
 import static com.linkedin.venice.integration.utils.VeniceClusterWrapper.DEFAULT_KEY_SCHEMA;
 import static com.linkedin.venice.integration.utils.VeniceClusterWrapper.DEFAULT_VALUE_SCHEMA;
@@ -134,6 +124,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.samza.config.MapConfig;
@@ -1957,6 +1948,21 @@ public class TestHybrid {
 
   private static VeniceClusterWrapper setUpCluster(boolean enablePartitionWiseSharedConsumer) {
     Properties extraProperties = new Properties();
+
+    System.setProperty("java.security.auth.login.config", "/Users/zpolicze/Documents/GitHub/jaas.conf");
+    System.setProperty("java.security.krb5.conf", "/etc/krb5.conf");
+    // System.setProperty("sun.security.krb5.debug")
+
+    extraProperties.setProperty(KAFKA_BOOTSTRAP_SERVERS, "serverless.warpstream.com:9092");
+    extraProperties.setProperty(SSL_KAFKA_BOOTSTRAP_SERVERS, "serverless.warpstream.com:9092");
+    extraProperties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "serverless.warpstream.com:9092");
+    extraProperties.setProperty(KAFKA_SECURITY_PROTOCOL, "SASL_SSL");
+    extraProperties.setProperty("sasl.mechanism", "PLAIN");
+    extraProperties.setProperty(
+        "sasl.jaas.config",
+        "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"ccun_3ffd28c24b3f968ef805dc72c2f6617766bc5c397af5c8df92edf694ee759b4c\" password=\""
+            + "ccp_3f90580cbf7b49e5a3af342c11af41ddf6ffe29c026f296b8cf4b67fd201caae" + "\";");
+
     extraProperties.setProperty(DEFAULT_MAX_NUMBER_OF_PARTITIONS, "5");
     VeniceClusterWrapper cluster = ServiceFactory.getVeniceCluster(1, 0, 0, 2, 1000000, false, false, extraProperties);
 

@@ -1,11 +1,11 @@
 package com.linkedin.venice.pubsub.adapter.kafka.admin;
 
+import static com.linkedin.venice.ConfigKeys.*;
 import static com.linkedin.venice.pubsub.PubSubConstants.PUBSUB_ADMIN_GET_TOPIC_CONFIG_RETRY_IN_SECONDS_DEFAULT_VALUE;
 
 import com.linkedin.venice.ConfigKeys;
 import com.linkedin.venice.pubsub.PubSubConstants;
 import com.linkedin.venice.pubsub.adapter.kafka.producer.ApacheKafkaProducerConfig;
-import com.linkedin.venice.utils.KafkaSSLUtils;
 import com.linkedin.venice.utils.VeniceProperties;
 import java.time.Duration;
 import java.util.Properties;
@@ -29,7 +29,7 @@ public class ApacheKafkaAdminConfig {
         veniceProperties.clipAndFilterNamespace(ApacheKafkaProducerConfig.KAFKA_CONFIG_PREFIX).toProperties());
     this.adminProperties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, brokerAddress);
     // Setup ssl config if needed.
-    this.isSslEnabled = KafkaSSLUtils.validateAndCopyKafkaSSLConfig(veniceProperties, this.adminProperties);
+    this.isSslEnabled = false;
     this.adminProperties.put(AdminClientConfig.RECEIVE_BUFFER_CONFIG, 1024 * 1024);
     this.topicConfigMaxRetryInMs =
         Duration
@@ -44,6 +44,12 @@ public class ApacheKafkaAdminConfig {
         PubSubConstants.PUBSUB_ADMIN_API_DEFAULT_TIMEOUT_MS_DEFAULT_VALUE);
     defaultApiTimeout = Duration.ofMillis(defaultApiTimeoutInMs);
     this.adminProperties.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, defaultApiTimeoutInMs);
+    this.adminProperties.setProperty(KAFKA_SECURITY_PROTOCOL, "SASL_SSL");
+    this.adminProperties.setProperty("sasl.mechanism", "PLAIN");
+    this.adminProperties.setProperty(
+        "sasl.jaas.config",
+        "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"ccun_3ffd28c24b3f968ef805dc72c2f6617766bc5c397af5c8df92edf694ee759b4c\" password=\""
+            + "ccp_3f90580cbf7b49e5a3af342c11af41ddf6ffe29c026f296b8cf4b67fd201caae" + "\";");
 
     LOGGER.debug("Created ApacheKafkaAdminConfig: {} - adminProperties: {}", this, adminProperties);
   }

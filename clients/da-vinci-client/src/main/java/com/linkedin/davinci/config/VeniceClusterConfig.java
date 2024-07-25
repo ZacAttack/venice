@@ -229,7 +229,8 @@ public class VeniceClusterConfig {
     }
     if (KafkaSSLUtils.isKafkaSSLProtocol(kafkaSecurityProtocolString)
         || kafkaBootstrapUrlToSecurityProtocol.containsValue(SecurityProtocol.SSL)) {
-      this.sslConfig = Optional.of(new SSLConfig(clusterProps));
+      // this.sslConfig = Optional.of(new SSLConfig(clusterProps));
+      this.sslConfig = Optional.empty();
     } else {
       this.sslConfig = Optional.empty();
     }
