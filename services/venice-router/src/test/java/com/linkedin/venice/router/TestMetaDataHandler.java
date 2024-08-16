@@ -369,7 +369,6 @@ public class TestMetaDataHandler {
     Assert.assertTrue(multiSchemaIdResponse.getSchemaIdSet().contains(1));
     Assert.assertTrue(multiSchemaIdResponse.getSchemaIdSet().contains(2));
     Assert.assertEquals(multiSchemaIdResponse.getSuperSetSchemaId(), SchemaData.INVALID_VALUE_SCHEMA_ID);
-
   }
 
   @Test
@@ -403,14 +402,19 @@ public class TestMetaDataHandler {
     String storeName = "test_store";
     String valueSchemaStr1 = "\"string\"";
     String valueSchemaStr2 = "\"long\"";
+    String valueSchemaStr3 = "\"int\"";
     String clusterName = "test-cluster";
     int valueSchemaId1 = 1;
     int valueSchemaId2 = 2;
+    int valueSchemaId3 = 3;
     // Mock ReadOnlySchemaRepository
     ReadOnlySchemaRepository schemaRepo = Mockito.mock(ReadOnlySchemaRepository.class);
     SchemaEntry valueSchemaEntry1 = new SchemaEntry(valueSchemaId1, valueSchemaStr1);
     SchemaEntry valueSchemaEntry2 = new SchemaEntry(valueSchemaId2, valueSchemaStr2);
-    Mockito.doReturn(Arrays.asList(valueSchemaEntry1, valueSchemaEntry2)).when(schemaRepo).getValueSchemas(storeName);
+    SchemaEntry valueSchemaEntry3 = new SchemaEntry(valueSchemaId3, valueSchemaStr3);
+    Mockito.doReturn(Arrays.asList(valueSchemaEntry1, valueSchemaEntry2, valueSchemaEntry3))
+        .when(schemaRepo)
+        .getValueSchemas(storeName);
 
     FullHttpResponse response = passRequestToMetadataHandler(
         "http://myRouterHost:4567/value_schema/" + storeName,
@@ -429,11 +433,29 @@ public class TestMetaDataHandler {
     Assert.assertEquals(multiSchemaResponse.getCluster(), clusterName);
     Assert.assertFalse(multiSchemaResponse.isError());
     MultiSchemaResponse.Schema[] schemas = multiSchemaResponse.getSchemas();
-    Assert.assertEquals(schemas.length, 2);
+    Assert.assertEquals(schemas.length, 3);
     Assert.assertEquals(schemas[0].getId(), valueSchemaId1);
     Assert.assertEquals(schemas[0].getSchemaStr(), valueSchemaStr1);
     Assert.assertEquals(schemas[1].getId(), valueSchemaId2);
     Assert.assertEquals(schemas[1].getSchemaStr(), valueSchemaStr2);
+
+    // mimic deletion of schema 1 by returning 2 schemas
+    Mockito.doReturn(Arrays.asList(valueSchemaEntry2, valueSchemaEntry3)).when(schemaRepo).getValueSchemas(storeName);
+    response = passRequestToMetadataHandler(
+        "http://myRouterHost:4567/value_schema/" + storeName,
+        null,
+        schemaRepo,
+        Mockito.mock(HelixReadOnlyStoreConfigRepository.class),
+        Collections.emptyMap(),
+        Collections.emptyMap());
+    multiSchemaResponse = OBJECT_MAPPER.readValue(response.content().array(), MultiSchemaResponse.class);
+    schemas = multiSchemaResponse.getSchemas();
+    Assert.assertEquals(schemas.length, 2);
+
+    Assert.assertEquals(schemas[0].getId(), valueSchemaId2);
+    Assert.assertEquals(schemas[0].getSchemaStr(), valueSchemaStr2);
+    Assert.assertEquals(schemas[1].getId(), valueSchemaId3);
+    Assert.assertEquals(schemas[1].getSchemaStr(), valueSchemaStr3);
   }
 
   @Test
@@ -1274,7 +1296,7 @@ public class TestMetaDataHandler {
   }
 
   @Test
-  public void testRequestTopicForStoreWithActiveActiveReplicationPolicy() throws IOException {
+  public void testRequestTopicForStoreWithActiveActiveStore() throws IOException {
     String clusterName = "test-cluster";
     HelixReadOnlyStoreRepository storeRepository = Mockito.mock(HelixReadOnlyStoreRepository.class);
     HelixReadOnlyStoreConfigRepository storeConfigRepository = Mockito.mock(HelixReadOnlyStoreConfigRepository.class);
@@ -1287,7 +1309,7 @@ public class TestMetaDataHandler {
         Time.SECONDS_PER_DAY,
         1,
         TimeUnit.MINUTES.toSeconds(1),
-        DataReplicationPolicy.ACTIVE_ACTIVE,
+        DataReplicationPolicy.NON_AGGREGATE,
         BufferReplayPolicy.REWIND_FROM_EOP);
     Mockito.doReturn(true).when(store).isHybrid();
     Mockito.doReturn(nonAggStoreConfig).when(store).getHybridStoreConfig();
@@ -1299,6 +1321,7 @@ public class TestMetaDataHandler {
     Mockito.doReturn(nonAggStoreConfig).when(currentVersion).getHybridStoreConfig();
     Mockito.doReturn(1).when(currentVersion).getNumber();
     Mockito.doReturn(10).when(currentVersion).getPartitionCount();
+    Mockito.doReturn(true).when(currentVersion).isActiveActiveReplicationEnabled();
 
     Mockito.doReturn(1).when(store).getCurrentVersion();
     Mockito.doReturn(currentVersion).when(store).getVersion(1);
@@ -1339,7 +1362,7 @@ public class TestMetaDataHandler {
         Time.SECONDS_PER_DAY,
         1,
         TimeUnit.MINUTES.toSeconds(1),
-        DataReplicationPolicy.ACTIVE_ACTIVE,
+        DataReplicationPolicy.NON_AGGREGATE,
         BufferReplayPolicy.REWIND_FROM_EOP);
     Mockito.doReturn(true).when(store).isHybrid();
     Mockito.doReturn(nonAggStoreConfig).when(store).getHybridStoreConfig();
@@ -1393,7 +1416,7 @@ public class TestMetaDataHandler {
         Time.SECONDS_PER_DAY,
         1,
         TimeUnit.MINUTES.toSeconds(1),
-        DataReplicationPolicy.ACTIVE_ACTIVE,
+        DataReplicationPolicy.NON_AGGREGATE,
         BufferReplayPolicy.REWIND_FROM_EOP);
     Mockito.doReturn(true).when(store).isHybrid();
     Mockito.doReturn(nonAggStoreConfig).when(store).getHybridStoreConfig();
@@ -1596,9 +1619,9 @@ public class TestMetaDataHandler {
 
     Map<CharSequence, Integer> instanceResultsFromPushStatusStore = new HashMap<CharSequence, Integer>() {
       {
-        put("ltx1-test.prod.linkedin.com_137", 1);
-        put("ltx1-test1.prod.linkedin.com_137", 1);
-        put("ltx1-test2.prod.linkedin.com_137", 1);
+        put("ltx1-test.prod.linkedin.com_137", ExecutionStatus.COMPLETED.getValue());
+        put("ltx1-test1.prod.linkedin.com_137", ExecutionStatus.NOT_CREATED.getValue());
+        put("ltx1-test2.prod.linkedin.com_137", ExecutionStatus.COMPLETED.getValue());
       }
     };
 

@@ -45,7 +45,7 @@ def kafkaVersion = '2.4.1.65'
 def log4j2Version = '2.17.1'
 def pegasusVersion = '29.31.0'
 def protobufVersion = '3.21.7'
-def jacksonVersion = '2.13.3'
+def jacksonVersion = '2.13.4'
 def pulsarGroup = 'org.apache.pulsar'
 def pulsarVersion = '2.10.3'
 def alpnAgentVersion = '2.0.10'
@@ -85,6 +85,7 @@ ext.libraries = [
     grpcServices: "io.grpc:grpc-services:${grpcVersion}",
     grpcStub: "io.grpc:grpc-stub:${grpcVersion}",
     hadoopCommon: "org.apache.hadoop:hadoop-common:${hadoopVersion}",
+    hadoopHdfs: "org.apache.hadoop:hadoop-hdfs:${hadoopVersion}",
     helix: 'org.apache.helix:helix-core:1.1.0',
     httpAsyncClient: 'org.apache.httpcomponents:httpasyncclient:4.1.5',
     httpClient5: 'org.apache.httpcomponents.client5:httpclient5:5.3',
@@ -118,7 +119,7 @@ ext.libraries = [
     pulsarIoCommon: "${pulsarGroup}:pulsar-io-common:${pulsarVersion}",
     r2: "com.linkedin.pegasus:r2:${pegasusVersion}",
     restliCommon: "com.linkedin.pegasus:restli-common:${pegasusVersion}",
-    rocksdbjni: 'org.rocksdb:rocksdbjni:8.11.4',
+    rocksdbjni: 'org.rocksdb:rocksdbjni:8.8.1',
     samzaApi: 'org.apache.samza:samza-api:1.5.1',
     slf4j: 'org.slf4j:slf4j:1.7.36',
     slf4jApi: 'org.slf4j:slf4j-api:1.7.36',

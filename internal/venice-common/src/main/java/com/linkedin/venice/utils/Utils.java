@@ -356,7 +356,7 @@ public class Utils {
       }
       String schemaString = IOUtils.toString(inputStream);
       Schema schema = AvroCompatibilityHelper.parse(schemaString);
-      LOGGER.info("Loaded schema from resource path: {}", resourcePath);
+      LOGGER.debug("Loaded schema from resource path: {}", resourcePath);
       LOGGER.debug("Schema literal:\n{}", schema.toString(true));
       return schema;
     }
@@ -460,16 +460,8 @@ public class Utils {
     return Arrays.asList(allowed).contains(newStatus.getRootStatus());
   }
 
-  public static List<String> parseCommaSeparatedStringToList(String rawString) {
-    String[] strArray = rawString.split(",\\s*");
-    if (strArray.length < 1) {
-      throw new VeniceException("Invalid input: " + rawString);
-    }
-    return Arrays.asList(strArray);
-  }
-
   public static Set<String> parseCommaSeparatedStringToSet(String rawString) {
-    if (rawString == null || rawString.length() == 0) {
+    if (StringUtils.isEmpty(rawString)) {
       return Collections.emptySet();
     }
     return Utils.setOf(rawString.split(",\\s*"));
@@ -734,10 +726,6 @@ public class Utils {
   @SafeVarargs
   public static <T> Set<T> mutableSetOf(T... objs) {
     return new HashSet<>(Arrays.asList(objs));
-  }
-
-  public static long calculateDurationMs(Time time, long startTimeMs) {
-    return time.getMilliseconds() - startTimeMs;
   }
 
   public static void closeQuietlyWithErrorLogged(Closeable... closeables) {

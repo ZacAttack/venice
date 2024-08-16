@@ -6,7 +6,6 @@ import com.linkedin.venice.pubsub.PubSubConsumerAdapterFactory;
 import com.linkedin.venice.pubsub.api.PubSubMessageDeserializer;
 import com.linkedin.venice.pubsub.api.PubSubTopic;
 import com.linkedin.venice.pubsub.api.PubSubTopicPartition;
-import com.linkedin.venice.throttle.EventThrottler;
 import com.linkedin.venice.utils.Time;
 import com.linkedin.venice.utils.concurrent.VeniceConcurrentHashMap;
 import io.tehuti.metrics.MetricsRepository;
@@ -35,12 +34,12 @@ public class TopicWiseKafkaConsumerService extends KafkaConsumerService {
   private final Logger LOGGER;
 
   TopicWiseKafkaConsumerService(
+      final ConsumerPoolType poolType,
       final PubSubConsumerAdapterFactory consumerFactory,
       final Properties consumerProperties,
       final long readCycleDelayMs,
       final int numOfConsumersPerKafkaCluster,
-      final EventThrottler bandwidthThrottler,
-      final EventThrottler recordsThrottler,
+      final IngestionThrottler ingestionThrottler,
       final KafkaClusterBasedRecordThrottler kafkaClusterBasedRecordThrottler,
       final MetricsRepository metricsRepository,
       final String kafkaClusterAlias,
@@ -54,12 +53,12 @@ public class TopicWiseKafkaConsumerService extends KafkaConsumerService {
       final ReadOnlyStoreRepository metadataRepository,
       final boolean isUnregisterMetricForDeletedStoreEnabled) {
     super(
+        poolType,
         consumerFactory,
         consumerProperties,
         readCycleDelayMs,
         numOfConsumersPerKafkaCluster,
-        bandwidthThrottler,
-        recordsThrottler,
+        ingestionThrottler,
         kafkaClusterBasedRecordThrottler,
         metricsRepository,
         kafkaClusterAlias,

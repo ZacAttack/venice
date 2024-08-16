@@ -17,7 +17,6 @@ import com.linkedin.venice.pubsub.api.PubSubMessage;
 import com.linkedin.venice.pubsub.api.PubSubMessageDeserializer;
 import com.linkedin.venice.pubsub.api.PubSubTopic;
 import com.linkedin.venice.pubsub.api.PubSubTopicPartition;
-import com.linkedin.venice.throttle.EventThrottler;
 import com.linkedin.venice.utils.DaemonThreadFactory;
 import com.linkedin.venice.utils.LatencyUtils;
 import com.linkedin.venice.utils.RedundantExceptionFilter;
@@ -60,7 +59,7 @@ import org.apache.logging.log4j.Logger;
  *    c) {@link ConsumerSubscriptionCleaner}
  * 2. Receive various calls to interrogate or mutate consumer state, and delegate them to the correct unit, by
  *    maintaining a mapping of which unit belongs to which version-topic and subscribed topic-partition. Notably,
- *    the {@link #startConsumptionIntoDataReceiver(PubSubTopicPartition, long, ConsumedDataReceiver)} function allows the
+ *    the {@link #startConsumptionIntoDataReceiver(PartitionReplicaIngestionContext, long, ConsumedDataReceiver)} function allows the
  *    caller to start funneling consumed data into a receiver (i.e. into another task).
  * 3. Provide a single abstract function that must be overridden by subclasses in order to implement a consumption
  *    load balancing strategy: {@link #pickConsumerForPartition(PubSubTopic, PubSubTopicPartition)}
@@ -82,16 +81,18 @@ public abstract class KafkaConsumerService extends AbstractKafkaConsumerService 
   protected final Map<PubSubTopic, Map<PubSubTopicPartition, SharedKafkaConsumer>> versionTopicToTopicPartitionToConsumer =
       new VeniceConcurrentHashMap<>();
 
+  protected final ConsumerPoolType poolType;
+
   /**
    * @param statsOverride injection of stats, for test purposes
    */
   protected KafkaConsumerService(
+      final ConsumerPoolType poolType,
       final PubSubConsumerAdapterFactory pubSubConsumerAdapterFactory,
       final Properties consumerProperties,
       final long readCycleDelayMs,
       final int numOfConsumersPerKafkaCluster,
-      final EventThrottler bandwidthThrottler,
-      final EventThrottler recordsThrottler,
+      final IngestionThrottler ingestionThrottler,
       final KafkaClusterBasedRecordThrottler kafkaClusterBasedRecordThrottler,
       final MetricsRepository metricsRepository,
       final String kafkaClusterAlias,
@@ -107,6 +108,7 @@ public abstract class KafkaConsumerService extends AbstractKafkaConsumerService 
     this.kafkaUrl = consumerProperties.getProperty(KAFKA_BOOTSTRAP_SERVERS);
     this.kafkaUrlForLogger = Utils.getSanitizedStringForLogger(kafkaUrl);
     this.LOGGER = LogManager.getLogger(KafkaConsumerService.class.getSimpleName() + " [" + kafkaUrlForLogger + "]");
+    this.poolType = poolType;
 
     // Initialize consumers and consumerExecutor
     consumerExecutor = Executors.newFixedThreadPool(
@@ -140,8 +142,12 @@ public abstract class KafkaConsumerService extends AbstractKafkaConsumerService 
           liveConfigBasedKafkaThrottlingEnabled
               ? () -> kafkaClusterBasedRecordThrottler.poll(pubSubConsumer, kafkaUrl, readCycleDelayMs)
               : () -> pubSubConsumer.poll(readCycleDelayMs);
-      final IntConsumer bandwidthThrottlerFunction = totalBytes -> bandwidthThrottler.maybeThrottle(totalBytes);
-      final IntConsumer recordsThrottlerFunction = recordsCount -> recordsThrottler.maybeThrottle(recordsCount);
+      final IntConsumer bandwidthThrottlerFunction =
+          totalBytes -> ingestionThrottler.maybeThrottleBandwidth(totalBytes);
+      final IntConsumer recordsThrottlerFunction = recordsCount -> {
+        ingestionThrottler.maybeThrottleRecordRate(poolType, recordsCount);
+      };
+
       final ConsumerSubscriptionCleaner cleaner = new ConsumerSubscriptionCleaner(
           sharedConsumerNonExistingTopicCleanupDelayMS,
           1000,
@@ -367,10 +373,11 @@ public abstract class KafkaConsumerService extends AbstractKafkaConsumerService 
 
   @Override
   public void startConsumptionIntoDataReceiver(
-      PubSubTopicPartition topicPartition,
+      PartitionReplicaIngestionContext partitionReplicaIngestionContext,
       long lastReadOffset,
       ConsumedDataReceiver<List<PubSubMessage<KafkaKey, KafkaMessageEnvelope, Long>>> consumedDataReceiver) {
     PubSubTopic versionTopic = consumedDataReceiver.destinationIdentifier();
+    PubSubTopicPartition topicPartition = partitionReplicaIngestionContext.getPubSubTopicPartition();
     SharedKafkaConsumer consumer = assignConsumerFor(versionTopic, topicPartition);
 
     if (consumer == null) {
@@ -396,12 +403,12 @@ public abstract class KafkaConsumerService extends AbstractKafkaConsumerService 
 
   interface KCSConstructor {
     KafkaConsumerService construct(
+        ConsumerPoolType poolType,
         PubSubConsumerAdapterFactory consumerFactory,
         Properties consumerProperties,
         long readCycleDelayMs,
         int numOfConsumersPerKafkaCluster,
-        EventThrottler bandwidthThrottler,
-        EventThrottler recordsThrottler,
+        IngestionThrottler ingestionThrottler,
         KafkaClusterBasedRecordThrottler kafkaClusterBasedRecordThrottler,
         MetricsRepository metricsRepository,
         String kafkaClusterAlias,
@@ -493,13 +500,16 @@ public abstract class KafkaConsumerService extends AbstractKafkaConsumerService 
           elapsedTimeSinceLastPollInMs =
               LatencyUtils.getElapsedTimeFromMsToMs(consumptionTask.getLastSuccessfulPollTimestamp());
         }
+        PubSubTopic destinationVersionTopic = consumptionTask.getDestinationIdentifier(pubSubTopicPartition);
+        String destinationVersionTopicName = destinationVersionTopic == null ? "" : destinationVersionTopic.getName();
         TopicPartitionIngestionInfo topicPartitionIngestionInfo = new TopicPartitionIngestionInfo(
             latestOffset,
             offsetLag,
             msgRate,
             byteRate,
             consumerIdx,
-            elapsedTimeSinceLastPollInMs);
+            elapsedTimeSinceLastPollInMs,
+            destinationVersionTopicName);
         topicPartitionIngestionInfoMap.put(topicPartition, topicPartitionIngestionInfo);
       }
     }

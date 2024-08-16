@@ -17,6 +17,7 @@ import com.linkedin.venice.controllerapi.VersionCreationResponse;
 import com.linkedin.venice.exceptions.ConfigurationException;
 import com.linkedin.venice.fastclient.meta.StoreMetadataFetchMode;
 import com.linkedin.venice.fastclient.utils.AbstractClientEndToEndSetup;
+import com.linkedin.venice.fastclient.utils.ClientTestUtils;
 import com.linkedin.venice.integration.utils.PubSubBrokerWrapper;
 import com.linkedin.venice.integration.utils.VeniceServerWrapper;
 import com.linkedin.venice.pubsub.PubSubProducerAdapterFactory;
@@ -410,8 +411,8 @@ public class FastClientIndividualFeatureConfigurationTest extends AbstractClient
             .setLongTailRetryThresholdForBatchGetInMicroSeconds(10000)
             .setLongTailRetryBudgetEnforcementWindowInMs(1000)
             .setSpeculativeQueryEnabled(false);
-    String multiGetLongTailRetryManagerStatsPrefix = ".multi-get-long-tail-retry-manager--";
-    String singleGetLongTailRetryManagerStatsPrefix = ".single-get-long-tail-retry-manager--";
+    String multiKeyLongTailRetryManagerStatsPrefix = ".multi-key-long-tail-retry-manager-" + storeName + "--";
+    String singleKeyLongTailRetryManagerStatsPrefix = ".single-key-long-tail-retry-manager-" + storeName + "--";
     MetricsRepository clientMetric = new MetricsRepository();
     AvroGenericStoreClient<String, GenericRecord> genericFastClient =
         getGenericFastClient(clientConfigBuilder, clientMetric, StoreMetadataFetchMode.SERVER_BASED_METADATA);
@@ -427,19 +428,19 @@ public class FastClientIndividualFeatureConfigurationTest extends AbstractClient
         10,
         TimeUnit.SECONDS,
         () -> assertTrue(
-            clientMetric.getMetric(multiGetLongTailRetryManagerStatsPrefix + "retry_limit_per_seconds.Gauge")
+            clientMetric.getMetric(multiKeyLongTailRetryManagerStatsPrefix + "retry_limit_per_seconds.Gauge")
                 .value() > 0,
             "Current value: "
-                + clientMetric.getMetric(multiGetLongTailRetryManagerStatsPrefix + "retry_limit_per_seconds.Gauge")
+                + clientMetric.getMetric(multiKeyLongTailRetryManagerStatsPrefix + "retry_limit_per_seconds.Gauge")
                     .value()));
-    assertTrue(clientMetric.getMetric(multiGetLongTailRetryManagerStatsPrefix + "retries_remaining.Gauge").value() > 0);
+    assertTrue(clientMetric.getMetric(multiKeyLongTailRetryManagerStatsPrefix + "retries_remaining.Gauge").value() > 0);
     assertEquals(
-        clientMetric.getMetric(multiGetLongTailRetryManagerStatsPrefix + "rejected_retry.OccurrenceRate").value(),
+        clientMetric.getMetric(multiKeyLongTailRetryManagerStatsPrefix + "rejected_retry.OccurrenceRate").value(),
         0d);
     // single get long tail retry manager metrics shouldn't be initialized because it's not enabled
-    assertNull(clientMetric.getMetric(singleGetLongTailRetryManagerStatsPrefix + "retry_limit_per_seconds.Gauge"));
-    assertNull(clientMetric.getMetric(singleGetLongTailRetryManagerStatsPrefix + "retries_remaining.Gauge"));
-    assertNull(clientMetric.getMetric(singleGetLongTailRetryManagerStatsPrefix + "rejected_retry.OccurrenceRate"));
+    assertNull(clientMetric.getMetric(singleKeyLongTailRetryManagerStatsPrefix + "retry_limit_per_seconds.Gauge"));
+    assertNull(clientMetric.getMetric(singleKeyLongTailRetryManagerStatsPrefix + "retries_remaining.Gauge"));
+    assertNull(clientMetric.getMetric(singleKeyLongTailRetryManagerStatsPrefix + "rejected_retry.OccurrenceRate"));
   }
 
   @Test(timeOut = TIME_OUT)
@@ -459,5 +460,36 @@ public class FastClientIndividualFeatureConfigurationTest extends AbstractClient
             clientConfigBuilder,
             new MetricsRepository(),
             StoreMetadataFetchMode.SERVER_BASED_METADATA));
+  }
+
+  @Test(timeOut = TIME_OUT)
+  public void testMultiKeyFanoutStats() throws IOException, ExecutionException, InterruptedException {
+    ClientConfig.ClientConfigBuilder clientConfigBuilder =
+        new ClientConfig.ClientConfigBuilder<>().setStoreName(storeName)
+            .setR2Client(r2Client)
+            .setLongTailRetryEnabledForBatchGet(true)
+            .setSpeculativeQueryEnabled(false);
+    MetricsRepository clientMetric = new MetricsRepository();
+    String metricPrefix = ClientTestUtils.getMetricPrefix(storeName, RequestType.MULTI_GET_STREAMING);
+    ;
+    String fanoutSizeAverageMetricName = metricPrefix + "fanout_size.Avg";
+    String fanoutSizeMaxMetricName = metricPrefix + "fanout_size.Max";
+    AvroGenericStoreClient<String, GenericRecord> genericFastClient =
+        getGenericFastClient(clientConfigBuilder, clientMetric, StoreMetadataFetchMode.SERVER_BASED_METADATA);
+    Set<String> keys = new HashSet<>();
+    for (int i = 0; i < recordCnt; ++i) {
+      String key = keyPrefix + i;
+      keys.add(key);
+    }
+    for (int i = 0; i < 10; i++) {
+      final Map<String, GenericRecord> result = genericFastClient.batchGet(keys).get();
+      assertEquals(result.size(), keys.size());
+    }
+    TestUtils.waitForNonDeterministicAssertion(10, TimeUnit.SECONDS, () -> {
+      assertNotNull(clientMetric.getMetric(fanoutSizeAverageMetricName));
+      assertNotNull(clientMetric.getMetric(fanoutSizeMaxMetricName));
+      assertTrue(clientMetric.getMetric(fanoutSizeAverageMetricName).value() >= 1.0);
+      assertTrue(clientMetric.getMetric(fanoutSizeMaxMetricName).value() >= 1.0);
+    });
   }
 }

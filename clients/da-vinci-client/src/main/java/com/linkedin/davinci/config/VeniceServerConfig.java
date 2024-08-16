@@ -2,9 +2,16 @@ package com.linkedin.davinci.config;
 
 import static com.linkedin.davinci.ingestion.utils.IsolatedIngestionUtils.INGESTION_ISOLATION_CONFIG_PREFIX;
 import static com.linkedin.davinci.store.rocksdb.RocksDBServerConfig.ROCKSDB_TOTAL_MEMTABLE_USAGE_CAP_IN_BYTES;
+import static com.linkedin.venice.ConfigConstants.DEFAULT_MAX_RECORD_SIZE_BYTES_BACKFILL;
 import static com.linkedin.venice.ConfigKeys.AUTOCREATE_DATA_PATH;
+import static com.linkedin.venice.ConfigKeys.BLOB_TRANSFER_MANAGER_ENABLED;
 import static com.linkedin.venice.ConfigKeys.DATA_BASE_PATH;
-import static com.linkedin.venice.ConfigKeys.DAVINCI_P2P_BLOB_TRANSFER_PORT;
+import static com.linkedin.venice.ConfigKeys.DAVINCI_P2P_BLOB_TRANSFER_CLIENT_PORT;
+import static com.linkedin.venice.ConfigKeys.DAVINCI_P2P_BLOB_TRANSFER_SERVER_PORT;
+import static com.linkedin.venice.ConfigKeys.DA_VINCI_CURRENT_VERSION_BOOTSTRAPPING_QUOTA_BYTES_PER_SECOND;
+import static com.linkedin.venice.ConfigKeys.DA_VINCI_CURRENT_VERSION_BOOTSTRAPPING_QUOTA_RECORDS_PER_SECOND;
+import static com.linkedin.venice.ConfigKeys.DA_VINCI_CURRENT_VERSION_BOOTSTRAPPING_SPEEDUP_ENABLED;
+import static com.linkedin.venice.ConfigKeys.DEFAULT_MAX_RECORD_SIZE_BYTES;
 import static com.linkedin.venice.ConfigKeys.DIV_PRODUCER_STATE_MAX_AGE_MS;
 import static com.linkedin.venice.ConfigKeys.ENABLE_GRPC_READ_SERVER;
 import static com.linkedin.venice.ConfigKeys.ENABLE_SERVER_ALLOW_LIST;
@@ -41,11 +48,19 @@ import static com.linkedin.venice.ConfigKeys.PARTICIPANT_MESSAGE_CONSUMPTION_DEL
 import static com.linkedin.venice.ConfigKeys.PUBSUB_TOPIC_MANAGER_METADATA_FETCHER_CONSUMER_POOL_SIZE;
 import static com.linkedin.venice.ConfigKeys.PUBSUB_TOPIC_MANAGER_METADATA_FETCHER_THREAD_POOL_SIZE;
 import static com.linkedin.venice.ConfigKeys.ROUTER_PRINCIPAL_NAME;
+import static com.linkedin.venice.ConfigKeys.SERVER_AA_WC_LEADER_QUOTA_RECORDS_PER_SECOND;
 import static com.linkedin.venice.ConfigKeys.SERVER_BLOCKING_QUEUE_TYPE;
 import static com.linkedin.venice.ConfigKeys.SERVER_COMPUTE_FAST_AVRO_ENABLED;
 import static com.linkedin.venice.ConfigKeys.SERVER_COMPUTE_QUEUE_CAPACITY;
 import static com.linkedin.venice.ConfigKeys.SERVER_COMPUTE_THREAD_NUM;
+import static com.linkedin.venice.ConfigKeys.SERVER_CONSUMER_POOL_ALLOCATION_STRATEGY;
+import static com.linkedin.venice.ConfigKeys.SERVER_CONSUMER_POOL_SIZE_FOR_CURRENT_VERSION_AA_WC_LEADER;
+import static com.linkedin.venice.ConfigKeys.SERVER_CONSUMER_POOL_SIZE_FOR_CURRENT_VERSION_NON_AA_WC_LEADER;
+import static com.linkedin.venice.ConfigKeys.SERVER_CONSUMER_POOL_SIZE_FOR_NON_CURRENT_VERSION_AA_WC_LEADER;
+import static com.linkedin.venice.ConfigKeys.SERVER_CONSUMER_POOL_SIZE_FOR_NON_CURRENT_VERSION_NON_AA_WC_LEADER;
 import static com.linkedin.venice.ConfigKeys.SERVER_CONSUMER_POOL_SIZE_PER_KAFKA_CLUSTER;
+import static com.linkedin.venice.ConfigKeys.SERVER_CURRENT_VERSION_AA_WC_LEADER_QUOTA_RECORDS_PER_SECOND;
+import static com.linkedin.venice.ConfigKeys.SERVER_CURRENT_VERSION_NON_AA_WC_LEADER_QUOTA_RECORDS_PER_SECOND;
 import static com.linkedin.venice.ConfigKeys.SERVER_DATABASE_CHECKSUM_VERIFICATION_ENABLED;
 import static com.linkedin.venice.ConfigKeys.SERVER_DATABASE_LOOKUP_QUEUE_CAPACITY;
 import static com.linkedin.venice.ConfigKeys.SERVER_DATABASE_MEMORY_STATS_ENABLED;
@@ -88,6 +103,8 @@ import static com.linkedin.venice.ConfigKeys.SERVER_NETTY_GRACEFUL_SHUTDOWN_PERI
 import static com.linkedin.venice.ConfigKeys.SERVER_NETTY_IDLE_TIME_SECONDS;
 import static com.linkedin.venice.ConfigKeys.SERVER_NETTY_WORKER_THREADS;
 import static com.linkedin.venice.ConfigKeys.SERVER_NODE_CAPACITY_RCU;
+import static com.linkedin.venice.ConfigKeys.SERVER_NON_CURRENT_VERSION_AA_WC_LEADER_QUOTA_RECORDS_PER_SECOND;
+import static com.linkedin.venice.ConfigKeys.SERVER_NON_CURRENT_VERSION_NON_AA_WC_LEADER_QUOTA_RECORDS_PER_SECOND;
 import static com.linkedin.venice.ConfigKeys.SERVER_NON_EXISTING_TOPIC_CHECK_RETRY_INTERNAL_SECOND;
 import static com.linkedin.venice.ConfigKeys.SERVER_NON_EXISTING_TOPIC_INGESTION_TASK_KILL_THRESHOLD_SECOND;
 import static com.linkedin.venice.ConfigKeys.SERVER_NUM_SCHEMA_FAST_CLASS_WARMUP;
@@ -105,6 +122,7 @@ import static com.linkedin.venice.ConfigKeys.SERVER_REMOTE_CONSUMER_CONFIG_PREFI
 import static com.linkedin.venice.ConfigKeys.SERVER_REMOTE_INGESTION_REPAIR_SLEEP_INTERVAL_SECONDS;
 import static com.linkedin.venice.ConfigKeys.SERVER_REST_SERVICE_EPOLL_ENABLED;
 import static com.linkedin.venice.ConfigKeys.SERVER_REST_SERVICE_STORAGE_THREAD_NUM;
+import static com.linkedin.venice.ConfigKeys.SERVER_RESUBSCRIPTION_TRIGGERED_BY_VERSION_INGESTION_CONTEXT_CHANGE_ENABLED;
 import static com.linkedin.venice.ConfigKeys.SERVER_ROCKSDB_STORAGE_CONFIG_CHECK_ENABLED;
 import static com.linkedin.venice.ConfigKeys.SERVER_ROUTER_CONNECTION_WARMING_DELAY_MS;
 import static com.linkedin.venice.ConfigKeys.SERVER_SCHEMA_FAST_CLASS_WARMUP_TIMEOUT;
@@ -134,9 +152,12 @@ import static com.linkedin.venice.ConfigKeys.UNREGISTER_METRIC_FOR_DELETED_STORE
 import static com.linkedin.venice.ConfigKeys.UNSORTED_INPUT_DRAINER_SIZE;
 import static com.linkedin.venice.ConfigKeys.USE_DA_VINCI_SPECIFIC_EXECUTION_STATUS_FOR_ERROR;
 import static com.linkedin.venice.pubsub.PubSubConstants.PUBSUB_TOPIC_MANAGER_METADATA_FETCHER_CONSUMER_POOL_SIZE_DEFAULT_VALUE;
+import static com.linkedin.venice.utils.ByteUtils.BYTES_PER_MB;
+import static com.linkedin.venice.utils.ByteUtils.generateHumanReadableByteCountString;
 
 import com.linkedin.davinci.helix.LeaderFollowerPartitionStateModelFactory;
 import com.linkedin.davinci.kafka.consumer.KafkaConsumerService;
+import com.linkedin.davinci.kafka.consumer.KafkaConsumerServiceDelegator;
 import com.linkedin.davinci.kafka.consumer.RemoteIngestionRepairService;
 import com.linkedin.davinci.store.rocksdb.RocksDBServerConfig;
 import com.linkedin.davinci.validation.KafkaDataIntegrityValidator;
@@ -463,11 +484,29 @@ public class VeniceServerConfig extends VeniceClusterConfig {
   private final int nonExistingTopicIngestionTaskKillThresholdSecond;
   private final int nonExistingTopicCheckRetryIntervalSecond;
   private final boolean dedicatedConsumerPoolForAAWCLeaderEnabled;
+  private final KafkaConsumerServiceDelegator.ConsumerPoolStrategyType consumerPoolStrategyType;
+  private final int consumerPoolSizeForCurrentVersionAAWCLeader;
+  private final int consumerPoolSizeForNonCurrentVersionAAWCLeader;
+  private final int consumerPoolSizeForCurrentVersionNonAAWCLeader;
+  private final int consumerPoolSizeForNonCurrentVersionNonAAWCLeader;
+
   private final int dedicatedConsumerPoolSizeForAAWCLeader;
   private final boolean useDaVinciSpecificExecutionStatusForError;
   private final boolean recordLevelMetricWhenBootstrappingCurrentVersionEnabled;
   private final String identityParserClassName;
-  private final int dvcP2pBlobTransferPort;
+  private final boolean blobTransferManagerEnabled;
+  private final int dvcP2pBlobTransferServerPort;
+  private final int dvcP2pBlobTransferClientPort;
+  private final boolean daVinciCurrentVersionBootstrappingSpeedupEnabled;
+  private final long daVinciCurrentVersionBootstrappingQuotaRecordsPerSecond;
+  private final long daVinciCurrentVersionBootstrappingQuotaBytesPerSecond;
+  private final boolean resubscriptionTriggeredByVersionIngestionContextChangeEnabled;
+  private final int defaultMaxRecordSizeBytes;
+  private final int aaWCLeaderQuotaRecordsPerSecond;
+  private final int currentVersionAAWCLeaderQuotaRecordsPerSecond;
+  private final int currentVersionNonAAWCLeaderQuotaRecordsPerSecond;
+  private final int nonCurrentVersionAAWCLeaderQuotaRecordsPerSecond;
+  private final int nonCurrentVersionNonAAWCLeaderQuotaRecordsPerSecond;
 
   public VeniceServerConfig(VeniceProperties serverProperties) throws ConfigurationException {
     this(serverProperties, Collections.emptyMap());
@@ -490,7 +529,10 @@ public class VeniceServerConfig extends VeniceClusterConfig {
     maxLeaderFollowerStateTransitionThreadNumber =
         serverProperties.getInt(MAX_LEADER_FOLLOWER_STATE_TRANSITION_THREAD_NUMBER, 20);
 
-    dvcP2pBlobTransferPort = serverProperties.getInt(DAVINCI_P2P_BLOB_TRANSFER_PORT, -1);
+    blobTransferManagerEnabled = serverProperties.getBoolean(BLOB_TRANSFER_MANAGER_ENABLED, false);
+    dvcP2pBlobTransferServerPort = serverProperties.getInt(DAVINCI_P2P_BLOB_TRANSFER_SERVER_PORT, -1);
+    dvcP2pBlobTransferClientPort =
+        serverProperties.getInt(DAVINCI_P2P_BLOB_TRANSFER_CLIENT_PORT, dvcP2pBlobTransferServerPort);
 
     String lfThreadPoolStrategyStr = serverProperties.getString(
         LEADER_FOLLOWER_STATE_TRANSITION_THREAD_POOL_STRATEGY,
@@ -723,7 +765,7 @@ public class VeniceServerConfig extends VeniceClusterConfig {
             .filter(s -> s.length() > 0)
             .collect(Collectors.toList());
     ingestionMemoryLimit = extractIngestionMemoryLimit(serverProperties, ingestionMode, forkedProcessJvmArgList);
-    LOGGER.info("Ingestion memory limit: {} after subtracting other usages", ingestionMemoryLimit);
+    LOGGER.debug("Ingestion memory limit: {} after subtracting other usages", ingestionMemoryLimit);
     ingestionMlockEnabled = serverProperties.getBoolean(INGESTION_MLOCK_ENABLED, false);
     if (!serverProperties.getString(INGESTION_MEMORY_LIMIT_STORE_LIST, "").isEmpty()) {
       ingestionMemoryLimitStoreSet =
@@ -737,7 +779,7 @@ public class VeniceServerConfig extends VeniceClusterConfig {
     divProducerStateMaxAgeMs =
         serverProperties.getLong(DIV_PRODUCER_STATE_MAX_AGE_MS, KafkaDataIntegrityValidator.DISABLED);
     pubSubClientsFactory = new PubSubClientsFactory(serverProperties);
-    routerPrincipalName = serverProperties.getString(ROUTER_PRINCIPAL_NAME, "CN=venice-router");
+    routerPrincipalName = serverProperties.getString(ROUTER_PRINCIPAL_NAME, "venice-router");
     ingestionTaskMaxIdleCount = serverProperties.getInt(SERVER_INGESTION_TASK_MAX_IDLE_COUNT, 10000);
     metaStoreWriterCloseTimeoutInMS = serverProperties.getLong(META_STORE_WRITER_CLOSE_TIMEOUT_MS, 300000L);
     metaStoreWriterCloseConcurrency = serverProperties.getInt(META_STORE_WRITER_CLOSE_CONCURRENCY, -1);
@@ -764,6 +806,18 @@ public class VeniceServerConfig extends VeniceClusterConfig {
         .getLong(SERVER_LEADER_COMPLETE_STATE_CHECK_IN_FOLLOWER_VALID_INTERVAL_MS, TimeUnit.MINUTES.toMillis(5));
     dedicatedConsumerPoolForAAWCLeaderEnabled =
         serverProperties.getBoolean(SERVER_DEDICATED_CONSUMER_POOL_FOR_AA_WC_LEADER_ENABLED, false);
+    consumerPoolStrategyType = KafkaConsumerServiceDelegator.ConsumerPoolStrategyType.valueOf(
+        serverProperties.getString(
+            SERVER_CONSUMER_POOL_ALLOCATION_STRATEGY,
+            KafkaConsumerServiceDelegator.ConsumerPoolStrategyType.DEFAULT.name()));
+    consumerPoolSizeForCurrentVersionAAWCLeader =
+        serverProperties.getInt(SERVER_CONSUMER_POOL_SIZE_FOR_CURRENT_VERSION_AA_WC_LEADER, 10);
+    consumerPoolSizeForNonCurrentVersionAAWCLeader =
+        serverProperties.getInt(SERVER_CONSUMER_POOL_SIZE_FOR_NON_CURRENT_VERSION_AA_WC_LEADER, 10);
+    consumerPoolSizeForCurrentVersionNonAAWCLeader =
+        serverProperties.getInt(SERVER_CONSUMER_POOL_SIZE_FOR_CURRENT_VERSION_NON_AA_WC_LEADER, 10);
+    consumerPoolSizeForNonCurrentVersionNonAAWCLeader =
+        serverProperties.getInt(SERVER_CONSUMER_POOL_SIZE_FOR_NON_CURRENT_VERSION_NON_AA_WC_LEADER, 10);
     dedicatedConsumerPoolSizeForAAWCLeader =
         serverProperties.getInt(SERVER_DEDICATED_CONSUMER_POOL_SIZE_FOR_AA_WC_LEADER, 5);
     useDaVinciSpecificExecutionStatusForError =
@@ -771,6 +825,30 @@ public class VeniceServerConfig extends VeniceClusterConfig {
     recordLevelMetricWhenBootstrappingCurrentVersionEnabled =
         serverProperties.getBoolean(SERVER_RECORD_LEVEL_METRICS_WHEN_BOOTSTRAPPING_CURRENT_VERSION_ENABLED, true);
     identityParserClassName = serverProperties.getString(IDENTITY_PARSER_CLASS, DefaultIdentityParser.class.getName());
+    daVinciCurrentVersionBootstrappingSpeedupEnabled =
+        serverProperties.getBoolean(DA_VINCI_CURRENT_VERSION_BOOTSTRAPPING_SPEEDUP_ENABLED, false);
+    daVinciCurrentVersionBootstrappingQuotaRecordsPerSecond =
+        serverProperties.getLong(DA_VINCI_CURRENT_VERSION_BOOTSTRAPPING_QUOTA_RECORDS_PER_SECOND, -1);
+    daVinciCurrentVersionBootstrappingQuotaBytesPerSecond =
+        serverProperties.getSizeInBytes(DA_VINCI_CURRENT_VERSION_BOOTSTRAPPING_QUOTA_BYTES_PER_SECOND, -1);
+    resubscriptionTriggeredByVersionIngestionContextChangeEnabled =
+        serverProperties.getBoolean(SERVER_RESUBSCRIPTION_TRIGGERED_BY_VERSION_INGESTION_CONTEXT_CHANGE_ENABLED, false);
+    defaultMaxRecordSizeBytes =
+        serverProperties.getInt(DEFAULT_MAX_RECORD_SIZE_BYTES, DEFAULT_MAX_RECORD_SIZE_BYTES_BACKFILL);
+    if (defaultMaxRecordSizeBytes < BYTES_PER_MB) {
+      throw new VeniceException(
+          DEFAULT_MAX_RECORD_SIZE_BYTES + ": " + defaultMaxRecordSizeBytes + " must be at least "
+              + generateHumanReadableByteCountString(BYTES_PER_MB));
+    }
+    aaWCLeaderQuotaRecordsPerSecond = serverProperties.getInt(SERVER_AA_WC_LEADER_QUOTA_RECORDS_PER_SECOND, -1);
+    currentVersionAAWCLeaderQuotaRecordsPerSecond =
+        serverProperties.getInt(SERVER_CURRENT_VERSION_AA_WC_LEADER_QUOTA_RECORDS_PER_SECOND, -1);
+    currentVersionNonAAWCLeaderQuotaRecordsPerSecond =
+        serverProperties.getInt(SERVER_CURRENT_VERSION_NON_AA_WC_LEADER_QUOTA_RECORDS_PER_SECOND, -1);
+    nonCurrentVersionAAWCLeaderQuotaRecordsPerSecond =
+        serverProperties.getInt(SERVER_NON_CURRENT_VERSION_AA_WC_LEADER_QUOTA_RECORDS_PER_SECOND, -1);
+    nonCurrentVersionNonAAWCLeaderQuotaRecordsPerSecond =
+        serverProperties.getInt(SERVER_NON_CURRENT_VERSION_NON_AA_WC_LEADER_QUOTA_RECORDS_PER_SECOND, -1);
   }
 
   long extractIngestionMemoryLimit(
@@ -860,8 +938,16 @@ public class VeniceServerConfig extends VeniceClusterConfig {
     return listenerHostname;
   }
 
-  public int getDvcP2pBlobTransferPort() {
-    return dvcP2pBlobTransferPort;
+  public int getDvcP2pBlobTransferServerPort() {
+    return dvcP2pBlobTransferServerPort;
+  }
+
+  public int getDvcP2pBlobTransferClientPort() {
+    return dvcP2pBlobTransferClientPort;
+  }
+
+  public boolean isBlobTransferManagerEnabled() {
+    return blobTransferManagerEnabled;
   }
 
   /**
@@ -1353,6 +1439,26 @@ public class VeniceServerConfig extends VeniceClusterConfig {
     return dedicatedConsumerPoolSizeForAAWCLeader;
   }
 
+  public KafkaConsumerServiceDelegator.ConsumerPoolStrategyType getConsumerPoolStrategyType() {
+    return consumerPoolStrategyType;
+  }
+
+  public int getConsumerPoolSizeForCurrentVersionAAWCLeader() {
+    return consumerPoolSizeForCurrentVersionAAWCLeader;
+  }
+
+  public int getConsumerPoolSizeForNonCurrentVersionAAWCLeader() {
+    return consumerPoolSizeForNonCurrentVersionAAWCLeader;
+  }
+
+  public int getConsumerPoolSizeForCurrentVersionNonAAWCLeader() {
+    return consumerPoolSizeForNonCurrentVersionNonAAWCLeader;
+  }
+
+  public int getConsumerPoolSizeForNonCurrentVersionNonAAWCLeader() {
+    return consumerPoolSizeForNonCurrentVersionNonAAWCLeader;
+  }
+
   public int getTopicManagerMetadataFetcherConsumerPoolSize() {
     return topicManagerMetadataFetcherConsumerPoolSize;
   }
@@ -1373,7 +1479,47 @@ public class VeniceServerConfig extends VeniceClusterConfig {
     return identityParserClassName;
   }
 
+  public int getDefaultMaxRecordSizeBytes() {
+    return defaultMaxRecordSizeBytes;
+  }
+
   public String getRocksDBPath() {
     return getDataBasePath() + File.separator + "rocksdb";
+  }
+
+  public boolean isDaVinciCurrentVersionBootstrappingSpeedupEnabled() {
+    return daVinciCurrentVersionBootstrappingSpeedupEnabled;
+  }
+
+  public long getDaVinciCurrentVersionBootstrappingQuotaRecordsPerSecond() {
+    return daVinciCurrentVersionBootstrappingQuotaRecordsPerSecond;
+  }
+
+  public long getDaVinciCurrentVersionBootstrappingQuotaBytesPerSecond() {
+    return daVinciCurrentVersionBootstrappingQuotaBytesPerSecond;
+  }
+
+  public boolean isResubscriptionTriggeredByVersionIngestionContextChangeEnabled() {
+    return resubscriptionTriggeredByVersionIngestionContextChangeEnabled;
+  }
+
+  public int getAaWCLeaderQuotaRecordsPerSecond() {
+    return aaWCLeaderQuotaRecordsPerSecond;
+  }
+
+  public int getCurrentVersionAAWCLeaderQuotaRecordsPerSecond() {
+    return currentVersionAAWCLeaderQuotaRecordsPerSecond;
+  }
+
+  public int getCurrentVersionNonAAWCLeaderQuotaRecordsPerSecond() {
+    return currentVersionNonAAWCLeaderQuotaRecordsPerSecond;
+  }
+
+  public int getNonCurrentVersionAAWCLeaderQuotaRecordsPerSecond() {
+    return nonCurrentVersionAAWCLeaderQuotaRecordsPerSecond;
+  }
+
+  public int getNonCurrentVersionNonAAWCLeaderQuotaRecordsPerSecond() {
+    return nonCurrentVersionNonAAWCLeaderQuotaRecordsPerSecond;
   }
 }

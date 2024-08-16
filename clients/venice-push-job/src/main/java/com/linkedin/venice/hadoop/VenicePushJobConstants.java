@@ -31,6 +31,9 @@ public final class VenicePushJobConstants {
   public static final boolean DEFAULT_EXTENDED_SCHEMA_VALIDITY_CHECK_ENABLED = true;
   public static final String UPDATE_SCHEMA_STRING_PROP = "update.schema";
 
+  // This is a temporary config used to rollout the native input format for Spark. This will be removed soon
+  public static final String SPARK_NATIVE_INPUT_FORMAT_ENABLED = "spark.native.input.format.enabled";
+
   // Vson input configs
   // Vson files store key/value schema on file header. key / value fields are optional
   // and should be specified only when key / value schema is the partial of the files.
@@ -201,11 +204,6 @@ public final class VenicePushJobConstants {
       "rewind.epoch.time.buffer.in.seconds.override";
 
   /**
-   * This config specifies if Venice is deployed in a multi-region mode
-   */
-  public static final String MULTI_REGION = "multi.region";
-
-  /**
    * In single-region mode, this must be a comma-separated list of child controller URLs or {@literal d2://<d2ServiceNameForChildController>}
    * In multi-region mode, it must be a comma-separated list of parent controller URLs or {@literal d2://<d2ServiceNameForParentController>}
    */
@@ -227,6 +225,7 @@ public final class VenicePushJobConstants {
    * ignore hdfs files with prefix "_" and "."
    */
   public static final PathFilter PATH_FILTER = p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
+  public static final String GLOB_FILTER_PATTERN = "[^_.]*";
 
   // Configs to control temp paths and their permissions
   public static final String HADOOP_TMP_DIR = "hadoop.tmp.dir";

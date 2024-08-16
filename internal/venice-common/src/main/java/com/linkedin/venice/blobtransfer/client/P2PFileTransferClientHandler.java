@@ -72,9 +72,11 @@ public class P2PFileTransferClientHandler extends SimpleChannelInboundHandler<Ht
 
       // Parse the file name
       this.fileName = getFileNameFromHeader(response);
+
       if (this.fileName == null) {
         throw new VeniceException("No file name specified in the response for " + payload.getFullResourceName());
       }
+      LOGGER.info("Starting blob transfer for file: {}", fileName);
       this.fileContentLength = Long.parseLong(response.headers().get(HttpHeaderNames.CONTENT_LENGTH));
 
       // Create the directory
@@ -84,6 +86,7 @@ public class P2PFileTransferClientHandler extends SimpleChannelInboundHandler<Ht
       // Prepare the file
       Path file = Files.createFile(partitionDir.resolve(fileName));
       outputFileChannel = FileChannel.open(file, StandardOpenOption.WRITE, StandardOpenOption.APPEND);
+
     } else if (msg instanceof HttpContent) {
       HttpContent content = (HttpContent) msg;
       ByteBuf byteBuf = content.content();
@@ -145,7 +148,7 @@ public class P2PFileTransferClientHandler extends SimpleChannelInboundHandler<Ht
 
   @Override
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-    LOGGER.error("Exception caught in when transferring files for {}", payload.getFullResourceName(), cause);
+    LOGGER.error("Exception caught in when transferring files for {}", payload.getFullResourceName());
     inputStreamFuture.toCompletableFuture().completeExceptionally(cause);
     ctx.close();
   }
