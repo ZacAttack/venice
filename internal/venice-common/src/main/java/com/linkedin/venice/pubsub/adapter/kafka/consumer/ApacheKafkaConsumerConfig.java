@@ -1,5 +1,6 @@
 package com.linkedin.venice.pubsub.adapter.kafka.consumer;
 
+import static com.linkedin.venice.ConfigKeys.*;
 import static com.linkedin.venice.pubsub.PubSubConstants.PUBSUB_CONSUMER_POSITION_RESET_STRATEGY;
 import static com.linkedin.venice.pubsub.adapter.kafka.producer.ApacheKafkaProducerConfig.KAFKA_CONFIG_PREFIX;
 
@@ -8,6 +9,7 @@ import com.linkedin.venice.utils.VeniceProperties;
 import java.time.Duration;
 import java.util.Properties;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,6 +52,21 @@ public class ApacheKafkaConsumerConfig {
     if (consumerName != null) {
       consumerProperties.put(ConsumerConfig.CLIENT_ID_CONFIG, consumerName);
     }
+
+    // System.setProperty("java.security.auth.login.config", "/Users/zpolicze/Documents/GitHub/jaas.conf");
+    // System.setProperty("java.security.krb5.conf", "/etc/krb5.conf");
+    // System.setProperty("sun.security.krb5.debug")
+
+    consumerProperties.setProperty(KAFKA_BOOTSTRAP_SERVERS, "localhost:9092");
+    consumerProperties.setProperty(SSL_KAFKA_BOOTSTRAP_SERVERS, "localhost:9092");
+    consumerProperties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+    // consumerProperties.setProperty(KAFKA_SECURITY_PROTOCOL, "SASL_SSL");
+    // consumerProperties.setProperty("sasl.mechanism", "PLAIN");
+    // consumerProperties.setProperty(
+    // "sasl.jaas.config",
+    // "org.apache.kafka.common.security.plain.PlainLoginModule required
+    // username=\"ccun_3ffd28c24b3f968ef805dc72c2f6617766bc5c397af5c8df92edf694ee759b4c\" password=\""
+    // + "ccp_3f90580cbf7b49e5a3af342c11af41ddf6ffe29c026f296b8cf4b67fd201caae" + "\";");
 
     // Setup ssl config if needed.
     // isSslEnabled = KafkaSSLUtils.validateAndCopyKafkaSSLConfig(veniceProperties, this.consumerProperties);

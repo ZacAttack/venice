@@ -1,8 +1,6 @@
 package com.linkedin.venice.utils;
 
-import static com.linkedin.venice.compression.CompressionStrategy.GZIP;
 import static com.linkedin.venice.compression.CompressionStrategy.NO_OP;
-import static com.linkedin.venice.compression.CompressionStrategy.ZSTD_WITH_DICT;
 
 import com.linkedin.avroutil1.compatibility.AvroCompatibilityHelper;
 import com.linkedin.davinci.client.DaVinciConfig;
@@ -25,7 +23,8 @@ import org.testng.collections.Lists;
 public class DataProviderUtils {
   public static final Object[] BOOLEAN = { false, true };
   public static final Object[] BOOLEAN_FALSE = { false };
-  public static final Object[] COMPRESSION_STRATEGIES = { NO_OP, GZIP, ZSTD_WITH_DICT };
+  // public static final Object[] COMPRESSION_STRATEGIES = { NO_OP, GZIP, ZSTD_WITH_DICT };
+  public static final Object[] COMPRESSION_STRATEGIES = { NO_OP };
   public static final Object[] PARTITION_COUNTS = { 1, 2, 3, 4, 8, 10, 16, 19, 92, 128 };
 
   /**

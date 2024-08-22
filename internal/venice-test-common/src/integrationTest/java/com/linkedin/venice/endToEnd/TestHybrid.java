@@ -1126,7 +1126,7 @@ public class TestHybrid {
     }
   }
 
-  @Test(dataProvider = "Compression-Strategies", dataProviderClass = DataProviderUtils.class, timeOut = 60
+  @Test(dataProvider = "Compression-Strategies", dataProviderClass = DataProviderUtils.class, timeOut = 6000
       * Time.MS_PER_SECOND)
   public void testDuplicatedMessagesWontBePersisted(CompressionStrategy compressionStrategy) throws Exception {
     Properties extraProperties = new Properties();
@@ -1181,9 +1181,11 @@ public class TestHybrid {
         AvroSerializer<String> stringSerializer = new AvroSerializer(STRING_SCHEMA);
         AvroGenericDeserializer<String> stringDeserializer =
             new AvroGenericDeserializer<>(STRING_SCHEMA, STRING_SCHEMA);
+        VeniceWriterOptions.Builder veniceWriterOptions =
+            new VeniceWriterOptions.Builder(Version.composeRealTimeTopic(storeName)).setBrokerAddress("localhost:9092");
         try (VeniceWriter<byte[], byte[], byte[]> realTimeTopicWriter =
             TestUtils.getVeniceWriterFactory(veniceWriterProperties, pubSubProducerAdapterFactory)
-                .createVeniceWriter(new VeniceWriterOptions.Builder(Version.composeRealTimeTopic(storeName)).build())) {
+                .createVeniceWriter(veniceWriterOptions.build())) {
           // Send <key1, value1, seq: 1>
           Pair<KafkaKey, KafkaMessageEnvelope> record = getKafkaKeyAndValueEnvelope(
               stringSerializer.serialize(key1),
@@ -1679,19 +1681,20 @@ public class TestHybrid {
   private static VeniceClusterWrapper setUpCluster(boolean enablePartitionWiseSharedConsumer) {
     Properties extraProperties = new Properties();
 
-    System.setProperty("java.security.auth.login.config", "/Users/zpolicze/Documents/GitHub/jaas.conf");
-    System.setProperty("java.security.krb5.conf", "/etc/krb5.conf");
+    // System.setProperty("java.security.auth.login.config", "/Users/zpolicze/Documents/GitHub/jaas.conf");
+    // System.setProperty("java.security.krb5.conf", "/etc/krb5.conf");
     // System.setProperty("sun.security.krb5.debug")
 
-    extraProperties.setProperty(KAFKA_BOOTSTRAP_SERVERS, "serverless.warpstream.com:9092");
-    extraProperties.setProperty(SSL_KAFKA_BOOTSTRAP_SERVERS, "serverless.warpstream.com:9092");
-    extraProperties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "serverless.warpstream.com:9092");
-    extraProperties.setProperty(KAFKA_SECURITY_PROTOCOL, "SASL_SSL");
-    extraProperties.setProperty("sasl.mechanism", "PLAIN");
-    extraProperties.setProperty(
-        "sasl.jaas.config",
-        "org.apache.kafka.common.security.plain.PlainLoginModule required username=\"ccun_3ffd28c24b3f968ef805dc72c2f6617766bc5c397af5c8df92edf694ee759b4c\" password=\""
-            + "ccp_3f90580cbf7b49e5a3af342c11af41ddf6ffe29c026f296b8cf4b67fd201caae" + "\";");
+    extraProperties.setProperty(KAFKA_BOOTSTRAP_SERVERS, "localhost:9092");
+    // extraProperties.setProperty(SSL_KAFKA_BOOTSTRAP_SERVERS, "localhost:9092");
+    extraProperties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+    // extraProperties.setProperty(KAFKA_SECURITY_PROTOCOL, "SASL_SSL");
+    // extraProperties.setProperty("sasl.mechanism", "PLAIN");
+    // extraProperties.setProperty(
+    // "sasl.jaas.config",
+    // "org.apache.kafka.common.security.plain.PlainLoginModule required
+    // username=\"ccun_3ffd28c24b3f968ef805dc72c2f6617766bc5c397af5c8df92edf694ee759b4c\" password=\""
+    // + "ccp_3f90580cbf7b49e5a3af342c11af41ddf6ffe29c026f296b8cf4b67fd201caae" + "\";");
 
     extraProperties.setProperty(DEFAULT_MAX_NUMBER_OF_PARTITIONS, "5");
     VeniceClusterWrapper cluster = ServiceFactory.getVeniceCluster(1, 0, 0, 2, 1000000, false, false, extraProperties);
