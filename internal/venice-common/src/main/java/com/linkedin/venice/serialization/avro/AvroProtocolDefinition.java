@@ -17,6 +17,7 @@ import com.linkedin.venice.kafka.protocol.state.StoreVersionState;
 import com.linkedin.venice.meta.Store;
 import com.linkedin.venice.metadata.response.MetadataResponseRecord;
 import com.linkedin.venice.metadata.response.StorePropertiesResponseRecord;
+import com.linkedin.venice.participant.protocol.GroupPartitionAssignment;
 import com.linkedin.venice.participant.protocol.ParticipantMessageValue;
 import com.linkedin.venice.pubsub.api.PubSubPositionWireFormat;
 import com.linkedin.venice.pushstatus.PushStatusKey;
@@ -180,7 +181,12 @@ public enum AvroProtocolDefinition {
    * Value schema for change capture event.
    * TODO: Figure out a way to pull in protocol from different view class.
    */
-  RECORD_CHANGE_EVENT(1, RecordChangeEvent.class);
+  RECORD_CHANGE_EVENT(1, RecordChangeEvent.class),
+
+  /**
+   * Used to encode the group partition assignment state.
+   */
+  GROUP_PARTITION_ASSIGNMENT(1, GroupPartitionAssignment.class);
 
   private static final Set<Byte> magicByteSet = validateMagicBytes();
 

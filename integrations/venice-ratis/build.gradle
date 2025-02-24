@@ -1,0 +1,33 @@
+configurations.implementation {
+  // jetty 6 conflicts with spark-java used in controller api
+  exclude group: 'org.mortbay.jetty'
+}
+
+dependencies {
+  implementation (project(':internal:venice-common')) {
+    exclude module: 'kafka_2.10'
+    exclude group: 'org.scala-lang'
+  }
+
+  implementation libraries.avroUtilFastserde
+  implementation project(':internal:venice-client-common')
+  implementation project(':clients:da-vinci-client')
+
+  implementation libraries.ratisGrpc
+  implementation libraries.ratisServer
+  implementation libraries.ratisClient
+
+  implementation libraries.log4j2api
+}
+
+// This is a proto type, so we'll lay off the code coverage for now
+ext {
+  jacocoCoverageThreshold = 0.0
+}
+
+//checkerFramework {
+//  extraJavacArgs = ['-Xmaxerrs', '256']
+//  checkers = ['org.checkerframework.checker.nullness.NullnessChecker']
+//  skipCheckerFramework = true
+//  excludeTests = true
+//}

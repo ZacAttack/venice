@@ -1,0 +1,37 @@
+{
+  "name": "GroupPartitionAssignment",
+  "namespace": "com.linkedin.venice.participant.protocol",
+  "type": "record",
+  "fields": [
+    {
+      "name": "storeName",
+      "doc": "Name of the store for which this assignment is for",
+      "type": "string"
+    },
+    {
+      "name": "groupName",
+      "doc": "Name of the raft group for which this assignment is for",
+      "type": "string"
+    },
+    {
+      "name": "timestampInSeconds",
+      "doc": "Timestamp of the assignment in seconds. This is used to determine the freshness of the assignment. Technically speaking, this shouldn't be used for strict causal ordering for different assignments. The transaction ID's in the raft log serve that purpose.  This is for humans to read and understand the order of events.",
+      "type": "long",
+      "default": -1
+    },
+    {
+      "name": "assignment",
+      "doc": "The assignment of partitions to participants in the group",
+      "type": {
+        "type": "map",
+        "java-key-class": "java.lang.String",
+        "avro.java.string": "String",
+        "values": {
+          "type": "array",
+          "items" : "int",
+          "default": []
+        }
+      }
+    }
+  ]
+}

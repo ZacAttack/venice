@@ -68,6 +68,7 @@ include 'integrations:venice-beam'
 include 'integrations:venice-duckdb'
 include 'integrations:venice-pulsar'
 include 'integrations:venice-samza'
+include 'integrations:venice-ratis'
 
 // integration tests
 include 'tests:venice-pulsar-test'
