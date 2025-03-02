@@ -1,3 +1,4 @@
+package src.main.java.com.linkedin.venice.ratis;
 
 public class Main {
   public static void main(String[] args) {

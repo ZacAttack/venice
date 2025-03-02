@@ -1,3 +1,6 @@
+package src.main.java.com.linkedin.venice.ratis;
+
+import com.linkedin.venice.exceptions.VeniceException;
 import com.linkedin.venice.participant.protocol.GroupPartitionAssignment;
 import com.linkedin.venice.serialization.avro.AvroProtocolDefinition;
 import com.linkedin.venice.serializer.FastSerializerDeserializerFactory;
@@ -9,13 +12,14 @@ import java.io.File;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.ratis.proto.RaftProtos;
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.protocol.RaftGroupId;
@@ -31,6 +35,9 @@ import org.apache.ratis.util.JavaUtils;
 
 
 public class PartitionAssignmentStateMachine extends BaseStateMachine {
+
+  // TODO: Ratis is grpc based, so it's probably more protobuf savvy. But I'm a milk fed avro country programmer. So
+  // for now we're using avro, but we should evaluate if protobuf here would be a more natural fit.
   private final RecordDeserializer<GroupPartitionAssignment> groupPartitionAssignmentDeserializer =
       FastSerializerDeserializerFactory.getFastAvroSpecificDeserializer(
           AvroProtocolDefinition.GROUP_PARTITION_ASSIGNMENT.getCurrentProtocolVersionSchema(),
@@ -40,12 +47,14 @@ public class PartitionAssignmentStateMachine extends BaseStateMachine {
       FastSerializerDeserializerFactory.getFastAvroGenericSerializer(
           AvroProtocolDefinition.GROUP_PARTITION_ASSIGNMENT.getCurrentProtocolVersionSchema());
 
+  private static final Logger LOGGER = LogManager.getLogger(PartitionAssignmentStateMachine.class);
   private final SimpleStateMachineStorage storage = new SimpleStateMachineStorage();
   private final Map<String, List<Integer>> partitionAssignments = new ConcurrentHashMap<String, List<Integer>>();
 
-  private synchronized void updatePartitionAssignment(TermIndex termIndex) {
-    updateLastAppliedTermIndex(termIndex);
+  private final String storeName;
 
+  public PartitionAssignmentStateMachine(String storeName) {
+    this.storeName = storeName;
   }
 
   /**
@@ -57,40 +66,43 @@ public class PartitionAssignmentStateMachine extends BaseStateMachine {
   @Override
   public CompletableFuture<Message> applyTransaction(TransactionContext trx) {
     final RaftProtos.LogEntryProto entry = trx.getLogEntry();
+    PartitioningMessage partitioningMessage =
+        new PartitioningMessage(entry.getStateMachineLogEntry().getLogData().toByteArray());
 
-    // check if the command is valid
-    // TODO: This should contain the new routing state. We need to extract that routing state and update the routing
-    // table.
-    final String command = entry.getStateMachineLogEntry().getLogData().toString(Charset.defaultCharset());
-    if (!AutoPartitioningAssignmentCommands.REBALANCE_PARTITIONS.matches(command)) {
-      return JavaUtils.completeExceptionally(new IllegalArgumentException("Invalid Command: " + command));
+    // Sanity check, we should only get these for
+    if (!storeName.equals(partitioningMessage.getGroupPartitionAssignment().getStoreName())) {
+      return JavaUtils.completeExceptionally(
+          new IllegalArgumentException(
+              String.format(
+                  "Store name mismatch. Expected: {}, Actual: {}",
+                  storeName,
+                  partitioningMessage.getGroupPartitionAssignment().getStoreName())));
     }
 
-    // increment the counter and update term-index
+    // apply the assignment and update term-index
     final TermIndex termIndex = TermIndex.valueOf(entry);
-    updatePartitionAssignment(termIndex);
+    updateState(termIndex, partitioningMessage.getGroupPartitionAssignment().getAssignment());
 
     // if leader, log the incremented value and the term-index
     if (trx.getServerRole() == RaftProtos.RaftPeerRole.LEADER) {
-      LOG.info("{}: Increment to {}", termIndex, partitionAssignments);
+      LOGGER.info(String.format("{}: Increment to {}", termIndex, partitionAssignments));
     }
 
-    // return the new value of the assignment to the client
+    // return the new value of the assignment to the client (TODO: consider serializing instead of sending a string)
     return CompletableFuture.completedFuture(Message.valueOf(String.valueOf(partitionAssignments)));
   }
 
   /**
-   * Process {@link AutoPartitioningAssignmentCommands#GET_PARTITION_ASSIGNMENTS}, which gets the assignment.
+   * Process the only query we got, which gets the assignment.
    *
    * @param request the GET request
    * @return a {@link Message} containing the current counter value as a {@link String}.
    */
   @Override
   public CompletableFuture<Message> query(Message request) {
-    final String command = request.getContent().toString(Charset.defaultCharset());
-    if (!AutoPartitioningAssignmentCommands.GET_PARTITION_ASSIGNMENTS.matches(command)) {
-      return JavaUtils.completeExceptionally(new IllegalArgumentException("Invalid Command: " + command));
-    }
+    // We only support one kind of query, so we don't bother checking into the request.
+    // TODO: Nice for humans, but not nice for deserializing. We can send back the avro serialized version, but won't
+    // for now
     return CompletableFuture.completedFuture(Message.valueOf(String.valueOf(partitionAssignments)));
   }
 
@@ -154,10 +166,9 @@ public class PartitionAssignmentStateMachine extends BaseStateMachine {
   }
 
   private synchronized void updateState(TermIndex applied, Map<String, List<Integer>> partitionAssignments) {
-    updateLastAppliedTermIndex(applied);
-    // TODO: should probably synchronize partition assignment
     this.partitionAssignments.clear();
     this.partitionAssignments.putAll(partitionAssignments);
+    updateLastAppliedTermIndex(applied);
   }
 
   /**
@@ -182,11 +193,11 @@ public class PartitionAssignmentStateMachine extends BaseStateMachine {
       groupPartitionAssignment.setAssignment(state.getPartitionAssignments());
       groupPartitionAssignment.setGroupName(getGroupId().toString());
       // TODO: pass the store name to the server
-      groupPartitionAssignment.setStoreName("");
+      groupPartitionAssignment.setStoreName(storeName);
       groupPartitionAssignment.setTimestampInSeconds(state.getTimestampInSeconds());
       out.write(groupPartitionAssignmentSerializer.serialize(groupPartitionAssignment));
     } catch (IOException ioe) {
-      LOG.warn("Failed to write snapshot file \"" + snapshotFile + "\", last applied index=" + state.getApplied());
+      LOGGER.warn("Failed to write snapshot file \"" + snapshotFile + "\", last applied index=" + state.getApplied());
     }
 
     // return the index of the stored snapshot (which is the last applied one)
@@ -201,26 +212,39 @@ public class PartitionAssignmentStateMachine extends BaseStateMachine {
    * @throws IOException if it failed to read from storage
    */
   private long load(SingleFileSnapshotInfo snapshot) throws IOException {
+
+    // TODO, technically, we don't need to rely on the local state. We could probably just go blank on start and let the
+    // load
+    // balancer do it's work. However, loading from local state might be useful in some cases where we already had local
+    // davinci state.
+
     // check null
     if (snapshot == null) {
-      LOG.warn("The snapshot info is null.");
+      LOGGER.warn("The snapshot info is null.");
       return RaftLog.INVALID_LOG_INDEX;
     }
     // check if the snapshot file exists.
     final Path snapshotPath = snapshot.getFile().getPath();
     if (!Files.exists(snapshotPath)) {
-      LOG.warn("The snapshot file {} does not exist for snapshot {}", snapshotPath, snapshot);
+      LOGGER.warn("The snapshot file {} does not exist for snapshot {}", snapshotPath, snapshot);
       return RaftLog.INVALID_LOG_INDEX;
     }
 
     // read the TermIndex from the snapshot file name
     final TermIndex last = SimpleStateMachineStorage.getTermIndexFromSnapshotFile(snapshotPath.toFile());
 
-    // TODO: Ratis is grpc based, so it's probably more protobuf savvy. But I'm a milk fed avro country programmer. So
-    // for now we're using avro, but we should evaluate if protobuf here would be a more natural fit.
     final GroupPartitionAssignment assignment;
+    File file = snapshotPath.toFile();
+    byte[] bytes = new byte[(int) file.length()];
     try (ObjectInputStream in = new ObjectInputStream(new BufferedInputStream(Files.newInputStream(snapshotPath)))) {
-      assignment = groupPartitionAssignmentDeserializer.deserialize(in.readAllBytes());
+      in.readFully(bytes);
+      assignment = groupPartitionAssignmentDeserializer.deserialize(bytes);
+    }
+
+    // Sanity check, this persisted state should be for the same store
+    if (!storeName.equals(assignment.getStoreName())) {
+      throw new VeniceException(
+          String.format("Store name mismatch. Expected: {}, Actual: {}", storeName, assignment.getStoreName()));
     }
 
     // update state

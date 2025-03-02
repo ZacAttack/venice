@@ -2,6 +2,7 @@
   "name": "GroupPartitionAssignment",
   "namespace": "com.linkedin.venice.participant.protocol",
   "type": "record",
+  "doc": "This is for the venice-ratis integration subproject.  It's used to showcase how this feature could work with Ratis",
   "fields": [
     {
       "name": "storeName",

@@ -11,11 +11,13 @@ dependencies {
 
   implementation libraries.avroUtilFastserde
   implementation project(':internal:venice-client-common')
+  implementation project(':internal:venice-common')
   implementation project(':clients:da-vinci-client')
 
   implementation libraries.ratisGrpc
   implementation libraries.ratisServer
   implementation libraries.ratisClient
+  implementation libraries.ratisCommon
 
   implementation libraries.log4j2api
 }
