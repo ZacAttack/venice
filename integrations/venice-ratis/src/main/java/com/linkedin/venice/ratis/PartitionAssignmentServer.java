@@ -1,4 +1,4 @@
-package src.main.java.com.linkedin.venice.ratis;
+package com.linkedin.venice.ratis;
 
 import java.io.Closeable;
 import java.io.File;

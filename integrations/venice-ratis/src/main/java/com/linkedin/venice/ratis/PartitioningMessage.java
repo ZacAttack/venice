@@ -1,4 +1,4 @@
-package src.main.java.com.linkedin.venice.ratis;
+package com.linkedin.venice.ratis;
 
 import com.linkedin.venice.participant.protocol.GroupPartitionAssignment;
 import com.linkedin.venice.serialization.avro.AvroProtocolDefinition;
