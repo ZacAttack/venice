@@ -239,6 +239,13 @@ public class TestStoreMigration {
 
     try (ControllerClient srcParentControllerClient = new ControllerClient(srcClusterName, parentControllerUrl);
         ControllerClient destParentControllerClient = new ControllerClient(destClusterName, parentControllerUrl)) {
+
+      // VENG-11925: Set Compaction settings on the store before performing migration
+      ControllerResponse initialUpdate = srcParentControllerClient.updateStore(
+          storeName,
+          new UpdateStoreQueryParams().setMinCompactionLagSeconds(100).setMaxCompactionLagSeconds(1000));
+      Assert.assertFalse(initialUpdate.isError());
+
       StoreMigrationTestUtil.startMigration(parentControllerUrl, storeName, srcClusterName, destClusterName);
       // Ensure migration status is updated in source parent controller
       TestUtils.waitForNonDeterministicAssertion(
@@ -268,6 +275,10 @@ public class TestStoreMigration {
         // Test replication metadata version id is updated
         Assert.assertEquals(srcStore.getVersions().get(1).getRmdVersionId(), 1);
         Assert.assertEquals(destStore.getVersions().get(1).getRmdVersionId(), 1);
+
+        // VENG-11925: Verify Compaction settings are the same
+        Assert.assertEquals(srcStore.getMaxCompactionLagSeconds(), destStore.getMaxCompactionLagSeconds());
+        Assert.assertEquals(srcStore.getMinCompactionLagSeconds(), destStore.getMinCompactionLagSeconds());
       });
     }
   }
